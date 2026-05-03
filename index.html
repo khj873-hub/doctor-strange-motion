@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚡ SORCERER SUPREME — Magic Gesture AR</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@400;700&family=IM+Fell+English:ital@0;1&display=swap');
+
+:root {
+  --gold: #c8a84b;
+  --gold-bright: #ffd700;
+  --gold-glow: rgba(200,168,75,0.4);
+  --portal-orange: #ff6a00;
+  --portal-gold: #ee9900;
+  --time-green: #00ff88;
+  --mirror-blue: #00d4ff;
+  --dark: #00000a;
+  --rune: rgba(200,168,75,0.6);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--dark);
+  width:100vw; height:100vh;
+  overflow:hidden;
+  font-family:'Cinzel', serif;
+  cursor:none;
+}
+
+/* 웹캠 — 전체 배경 */
+#webcam {
+  position:fixed; top:0; left:0;
+  width:100%; height:100%;
+  object-fit:cover;
+  transform:scaleX(-1);
+  z-index:0;
+  filter:brightness(1.5) saturate(1.1);
+}
+
+/* 비네트 제거 */
+#vignette { display:none; }
+
+/* 마법 캔버스 */
+#magic-canvas {
+  position:fixed; top:0; left:0;
+  width:100%; height:100%;
+  z-index:10; pointer-events:none;
+}
+
+/* 랜드마크 캔버스 */
+#lm-canvas {
+  position:fixed; top:0; left:0;
+  width:100%; height:100%;
+  z-index:20; pointer-events:none;
+  transform:scaleX(-1);
+}
+
+#cam-wrap { display:none; }
+
+/* HUD */
+#hud { position:fixed; inset:0; z-index:30; pointer-events:none; }
+
+/* 상단 타이틀 */
+#title-area {
+  position:absolute; top:22px; left:50%;
+  transform:translateX(-50%); text-align:center;
+}
+#title-area h1 {
+  font-family:'Cinzel Decorative', serif;
+  font-size:clamp(13px,2vw,18px);
+  letter-spacing:6px; font-weight:400;
+  color:var(--gold);
+  text-shadow:0 0 20px var(--gold-glow), 0 0 40px rgba(200,168,75,.2);
+}
+#title-area .sub {
+  font-family:'IM Fell English', serif;
+  font-size:10px; letter-spacing:3px; font-style:italic;
+  color:rgba(200,168,75,.4); margin-top:4px;
+}
+
+/* 마법 선택 패널 */
+#spell-panel {
+  position:absolute; left:22px; top:50%;
+  transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:10px;
+}
+.spell-btn {
+  display:flex; align-items:center; gap:10px;
+  opacity:0.35; transition:all .25s;
+}
+.spell-btn.active { opacity:1; filter:drop-shadow(0 0 8px var(--gold)); }
+.spell-icon { font-size:22px; width:28px; text-align:center; }
+.spell-info { font-size:8px; letter-spacing:1px; line-height:1.8; color:var(--gold); }
+.spell-name { font-size:10px; font-weight:600; color:var(--gold-bright); }
+
+/* 현재 마법 표시 */
+#current-spell {
+  position:absolute; bottom:28px; left:50%;
+  transform:translateX(-50%); text-align:center;
+}
+#spell-label {
+  font-family:'Cinzel Decorative', serif;
+  font-size:clamp(14px,2.5vw,22px);
+  letter-spacing:4px; color:var(--gold);
+  text-shadow:0 0 16px var(--gold-glow);
+  min-height:28px; transition:all .2s;
+}
+#spell-sub {
+  font-family:'IM Fell English', serif;
+  font-size:9px; letter-spacing:3px; font-style:italic;
+  color:rgba(200,168,75,.4); margin-top:4px;
+}
+
+/* 마력 게이지 */
+#power-bar {
+  position:absolute; bottom:70px; left:50%;
+  transform:translateX(-50%); width:200px; text-align:center;
+}
+#power-label {
+  font-size:7px; letter-spacing:3px; color:rgba(200,168,75,.4); margin-bottom:4px;
+}
+#power-bg {
+  width:200px; height:3px; background:rgba(200,168,75,.1); border-radius:2px;
+}
+#power-fill {
+  height:100%; width:0%; border-radius:2px;
+  background:linear-gradient(to right, var(--gold), var(--gold-bright));
+  box-shadow:0 0 8px var(--gold-glow);
+  transition:background .3s;
+}
+
+/* 로딩 */
+#loading {
+  position:fixed; inset:0; z-index:9999;
+  background:#00000a;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:18px;
+}
+#loading h2 {
+  font-family:'Cinzel Decorative', serif;
+  font-size:clamp(18px,4vw,28px); letter-spacing:6px;
+  color:var(--gold); text-shadow:0 0 30px var(--gold-glow);
+}
+#ld-bar { width:220px; height:1px; background:rgba(200,168,75,.1); }
+#ld-fill { height:100%; background:var(--gold); box-shadow:0 0 8px var(--gold-glow); width:0; transition:width .4s; }
+#ld-msg { font-family:'IM Fell English', serif; font-size:11px; font-style:italic; letter-spacing:2px; color:rgba(200,168,75,.4); }
+
+/* 커서 */
+#cursor { position:fixed; z-index:9998; pointer-events:none; opacity:0; transition:opacity .15s; }
+
+/* 포탈 힌트 */
+#portal-hint {
+  position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  font-family:'Cinzel Decorative', serif;
+  font-size:clamp(28px,5vw,52px);
+  color:#fff;
+  text-shadow:0 0 30px var(--portal-orange), 0 0 60px var(--portal-gold);
+  opacity:0; pointer-events:none; transition:opacity .3s;
+  letter-spacing:4px; text-align:center;
+}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <h2>SORCERER SUPREME</h2>
+  <div id="ld-bar"><div id="ld-fill"></div></div>
+  <div id="ld-msg">Channeling the mystic arts...</div>
+</div>
+
+<video id="webcam" autoplay playsinline muted></video>
+<canvas id="magic-canvas"></canvas>
+<canvas id="lm-canvas"></canvas>
+
+<!-- 커서 -->
+<div id="cursor" style="width:32px;height:32px;margin:-16px 0 0 -16px;">
+  <svg viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="12" stroke="#c8a84b" stroke-width="1" opacity=".8"/>
+    <circle cx="16" cy="16" r="3" fill="#c8a84b" opacity=".9"/>
+    <circle cx="16" cy="4" r="1.5" fill="#c8a84b" opacity=".5"/>
+    <circle cx="16" cy="28" r="1.5" fill="#c8a84b" opacity=".5"/>
+    <circle cx="4" cy="16" r="1.5" fill="#c8a84b" opacity=".5"/>
+    <circle cx="28" cy="16" r="1.5" fill="#c8a84b" opacity=".5"/>
+  </svg>
+</div>
+
+<!-- 비네트 -->
+<div id="vignette"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="title-area">
+    <h1>SORCERER SUPREME</h1>
+    <div class="sub">✦ Mystic Arts Gesture Control ✦</div>
+  </div>
+
+  <div id="spell-panel">
+    <div class="spell-btn" id="sp-mandala">
+      <div class="spell-icon">🌀</div>
+      <div class="spell-info"><div class="spell-name">MANDALAS</div>손 원 그리기</div>
+    </div>
+    <div class="spell-btn" id="sp-portal">
+      <div class="spell-icon">🌀</div>
+      <div class="spell-info"><div class="spell-name">PORTAL</div>양손 핀치</div>
+    </div>
+    <div class="spell-btn" id="sp-timestone">
+      <div class="spell-icon">💚</div>
+      <div class="spell-info"><div class="spell-name">TIME STONE</div>오픈 핸드</div>
+    </div>
+    <div class="spell-btn" id="sp-mirror">
+      <div class="spell-icon">💠</div>
+      <div class="spell-info"><div class="spell-name">MIRROR DIM</div>검지 드로잉</div>
+    </div>
+    <div class="spell-btn" id="sp-shield">
+      <div class="spell-icon">🛡</div>
+      <div class="spell-info"><div class="spell-name">SHIELD</div>주먹</div>
+    </div>
+  </div>
+
+  <div id="current-spell">
+    <div id="spell-label">—</div>
+    <div id="spell-sub">손을 카메라에 보여주세요</div>
+  </div>
+
+  <div id="power-bar">
+    <div id="power-label">MYSTIC POWER</div>
+    <div id="power-bg"><div id="power-fill"></div></div>
+  </div>
+
+  <div id="portal-hint"></div>
+</div>
+
+<!-- 미니캠 -->
+<div id="cam-wrap">
+  <video id="cam-small" autoplay playsinline muted></video>
+  <canvas id="lm-small" width="180" height="135"></canvas>
+  <div class="cam-rune">✦ HAND SIGHT ✦</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script>
+'use strict';
+
+function ld(p,m){
+  document.getElementById('ld-fill').style.width=p+'%';
+  document.getElementById('ld-msg').textContent=m;
+}
+
+// ══════════════════════════════════════════════════════════
+// 캔버스
+// ══════════════════════════════════════════════════════════
+const magicCv = document.getElementById('magic-canvas');
+const lmCv    = document.getElementById('lm-canvas');
+const smCv    = document.getElementById('lm-small');
+const mCtx = magicCv.getContext('2d');
+const lCtx = lmCv.getContext('2d');
+const sCtx = smCv.getContext('2d');
+
+function resize(){
+  magicCv.width = lmCv.width = innerWidth;
+  magicCv.height= lmCv.height= innerHeight;
+}
+resize(); window.addEventListener('resize', resize);
+
+// ══════════════════════════════════════════════════════════
+// Web Audio — 마법 사운드
+// ══════════════════════════════════════════════════════════
+let aCtx=null;
+function initAudio(){
+  if(aCtx)return;
+  aCtx=new(window.AudioContext||window.webkitAudioContext)();
+}
+
+function playMystic(freq=440,dur=0.6,vol=0.12,type='sine'){
+  if(!aCtx)return;
+  const t=aCtx.currentTime;
+  const o=aCtx.createOscillator(),g=aCtx.createGain();
+  o.type=type; o.frequency.setValueAtTime(freq,t);
+  o.frequency.exponentialRampToValueAtTime(freq*1.5,t+dur*.4);
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(vol,t+.05);
+  g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(g);g.connect(aCtx.destination);
+  o.start(t);o.stop(t+dur+.05);
+}
+
+function playPortalOpen(){
+  if(!aCtx)return;
+  const t=aCtx.currentTime;
+  [150,200,300,450,600].forEach((f,i)=>{
+    const o=aCtx.createOscillator(),g=aCtx.createGain();
+    o.type='sine'; o.frequency.value=f;
+    g.gain.setValueAtTime(0,t+i*.05);
+    g.gain.linearRampToValueAtTime(.12,t+i*.05+.08);
+    g.gain.exponentialRampToValueAtTime(.001,t+i*.05+.8);
+    o.connect(g);g.connect(aCtx.destination);
+    o.start(t+i*.05);o.stop(t+i*.05+.85);
+  });
+  // 노이즈 윙
+  const buf=aCtx.createBuffer(1,aCtx.sampleRate*.8,aCtx.sampleRate);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(aCtx.sampleRate*.2));
+  const s=aCtx.createBufferSource(),f=aCtx.createBiquadFilter(),g2=aCtx.createGain();
+  s.buffer=buf; f.type='bandpass'; f.frequency.value=800;
+  g2.gain.value=.15;
+  s.connect(f);f.connect(g2);g2.connect(aCtx.destination);
+  s.start(t);
+}
+
+function playShield(){
+  if(!aCtx)return;
+  [220,330,440,550].forEach((f,i)=>{
+    setTimeout(()=>playMystic(f,.3,.1),i*40);
+  });
+}
+
+function playTimestone(){
+  if(!aCtx)return;
+  const t=aCtx.currentTime;
+  const o=aCtx.createOscillator(),g=aCtx.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(200,t);
+  o.frequency.exponentialRampToValueAtTime(800,t+.5);
+  g.gain.setValueAtTime(.15,t);
+  g.gain.exponentialRampToValueAtTime(.001,t+1.2);
+  o.connect(g);g.connect(aCtx.destination);
+  o.start(t);o.stop(t+1.25);
+}
+
+// ══════════════════════════════════════════════════════════
+// 마법 파티클 & 이펙트 시스템
+// ══════════════════════════════════════════════════════════
+let particles=[];
+let mandalaRings=[]; // 만달라 링들
+let portalState={active:false,x:0,y:0,radius:0,phase:0,sparks:[]};
+let mirrorTrails=[]; // 검지 드로잉 궤적
+let shieldState={active:false,x:0,y:0,radius:0,phase:0,life:0};
+let timestoneState={active:false,x:0,y:0,phase:0,life:0};
+let globalPower=0; // 마력 게이지 0~1
+
+function addParticle(x,y,vx,vy,color,size,life,decay,gravity=0,type='dot'){
+  particles.push({x,y,vx,vy,color,size,life,decay,gravity,type});
+}
+
+// 황금 마법진 파티클 스폰
+function spawnRuneParticles(x,y,count,color='#c8a84b'){
+  for(let i=0;i<Math.ceil(count*0.4);i++){
+    const a=Math.random()*Math.PI*2;
+    const s=1+Math.random()*4;
+    const c=['#c8a84b','#ffd700','#fff8dc','#ff6a00'][~~(Math.random()*4)];
+    addParticle(x,y,Math.cos(a)*s,Math.sin(a)*s,c,2+Math.random()*3,1,.018,-.02,'spark');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// 만달라 (MANDALAS OF KAECILIUS) 이펙트
+// ══════════════════════════════════════════════════════════
+function drawMandala(ctx, cx, cy, radius, phase, alpha, power){
+  if(alpha<=0) return;
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  ctx.translate(cx,cy);
+
+  const arms=8;
+  const layers=3+~~(power*4);
+
+  for(let l=0;l<layers;l++){
+    const r=radius*(l+1)/(layers+1);
+    const rot=phase*(l%2===0?1:-1)+(l*Math.PI/layers);
+    ctx.save();
+    ctx.rotate(rot);
+
+    // 외곽 원
+    ctx.strokeStyle=`rgba(200,168,75,${.6-l*.1})`;
+    ctx.lineWidth=1;
+    ctx.shadowColor='#c8a84b';
+    ctx.shadowBlur=4+power*6;
+    ctx.beginPath();
+    ctx.arc(0,0,r,0,Math.PI*2);
+    ctx.stroke();
+
+    // 방사형 선
+    for(let i=0;i<arms;i++){
+      const a=(i/arms)*Math.PI*2;
+      const innerR=r*.3;
+      ctx.strokeStyle=`rgba(200,168,75,${.4-l*.05})`;
+      ctx.lineWidth=.8;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*innerR,Math.sin(a)*innerR);
+      ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
+      ctx.stroke();
+
+      // 꼭짓점 룬 문자 대신 작은 다이아
+      const ex=Math.cos(a)*r, ey=Math.sin(a)*r;
+      const ds=4+power*3;
+      ctx.fillStyle=`rgba(255,215,0,${.7-l*.1})`;
+      ctx.shadowColor='#ffd700';
+      ctx.shadowBlur=10;
+      ctx.beginPath();
+      ctx.moveTo(ex,ey-ds);
+      ctx.lineTo(ex+ds*.6,ey);
+      ctx.lineTo(ex,ey+ds);
+      ctx.lineTo(ex-ds*.6,ey);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // 내부 별 모양
+    if(l===0){
+      ctx.strokeStyle=`rgba(255,200,50,${.5*alpha})`;
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      for(let i=0;i<arms*2;i++){
+        const a=(i/arms/2)*Math.PI*2;
+        const rr=i%2===0?r*.6:r*.25;
+        i===0?ctx.moveTo(Math.cos(a)*rr,Math.sin(a)*rr):ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // 중앙 글로우
+  const grd=ctx.createRadialGradient(0,0,0,0,0,radius*.3);
+  grd.addColorStop(0,`rgba(255,215,0,${.4*alpha})`);
+  grd.addColorStop(.5,`rgba(200,168,75,${.2*alpha})`);
+  grd.addColorStop(1,'rgba(200,168,75,0)');
+  ctx.fillStyle=grd;
+  ctx.beginPath();
+  ctx.arc(0,0,radius*.3,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════════════════
+// 포탈 (SLING RING PORTAL) 이펙트
+// ══════════════════════════════════════════════════════════
+function drawPortal(ctx, state, dt){
+  if(!state.active) return;
+  const {x,y,radius,phase} = state;
+  state.phase+=dt*2;
+
+  ctx.save();
+  ctx.translate(x,y);
+
+  // 포탈 메인 원
+  const rings=6;
+  for(let r=0;r<rings;r++){
+    const rr=radius*(r+1)/rings;
+    const alpha=.8-r*.1;
+    ctx.save();
+    ctx.rotate(phase*(r%2===0?.5:-.5));
+
+    // 불꽃 링 (오렌지-황금)
+    const grd=ctx.createConicalGradient?undefined:null;
+    ctx.strokeStyle=`hsl(${30+r*8},100%,${60-r*5}%)`;
+    ctx.lineWidth=3-r*.3;
+    ctx.shadowColor=`hsl(${30+r*8},100%,60%)`;
+    ctx.shadowBlur=15+r*5;
+    ctx.globalAlpha=alpha;
+    ctx.setLineDash([10+r*3,5+r*2]);
+    ctx.lineDashOffset=phase*30;
+    ctx.beginPath();
+    ctx.arc(0,0,rr,0,Math.PI*2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // 포탈 스파크
+  state.sparks=state.sparks.filter(s=>{
+    s.angle+=s.speed;
+    s.life-=.015;
+    if(s.life<=0)return false;
+    const sx=Math.cos(s.angle)*s.r;
+    const sy=Math.sin(s.angle)*s.r;
+    ctx.save();
+    ctx.globalAlpha=s.life;
+    ctx.fillStyle='#ff8c00';
+    ctx.shadowColor='#ff6a00'; ctx.shadowBlur=12;
+    ctx.beginPath();
+    ctx.arc(sx,sy,s.size*s.life,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+    return true;
+  });
+
+  // 스파크 추가
+  if(Math.random()<.1){
+    state.sparks.push({
+      angle:Math.random()*Math.PI*2,
+      r:radius*(.3+Math.random()*.7),
+      speed:.05+Math.random()*.1,
+      size:2+Math.random()*4,
+      life:1,
+    });
+  }
+
+  // 중앙 포탈 내부 (어두운 원형)
+  const inner=ctx.createRadialGradient(0,0,0,0,0,radius*.5);
+  inner.addColorStop(0,'rgba(0,0,0,.85)');
+  inner.addColorStop(.7,'rgba(20,5,0,.6)');
+  inner.addColorStop(1,'rgba(255,100,0,0)');
+  ctx.globalAlpha=1;
+  ctx.fillStyle=inner;
+  ctx.beginPath();
+  ctx.arc(0,0,radius*.5,0,Math.PI*2);
+  ctx.fill();
+
+  // 포탈 외곽 글로우
+  const outerGlow=ctx.createRadialGradient(0,0,radius*.8,0,0,radius*1.2);
+  outerGlow.addColorStop(0,'rgba(255,106,0,.3)');
+  outerGlow.addColorStop(1,'rgba(255,106,0,0)');
+  ctx.fillStyle=outerGlow;
+  ctx.beginPath();
+  ctx.arc(0,0,radius*1.2,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════════════════
+// 타임 스톤 (시간 역행) 이펙트
+// ══════════════════════════════════════════════════════════
+function drawTimestone(ctx, state, dt){
+  if(!state.active) return;
+  const {x,y,phase,life}=state;
+  state.phase+=dt*3;
+  state.life-=dt*.5;
+  if(state.life<=0){state.active=false;return;}
+
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.globalAlpha=Math.min(1,state.life);
+
+  // 시간 파동 (동심원 확산)
+  for(let i=0;i<5;i++){
+    const r=50+i*40+(phase*60)%(50*i+50);
+    const a=Math.max(0,.8-r/350);
+    ctx.strokeStyle=`rgba(0,255,136,${a})`;
+    ctx.lineWidth=2;
+    ctx.shadowColor='#00ff88';
+    ctx.shadowBlur=15;
+    ctx.beginPath();
+    ctx.arc(0,0,r,0,Math.PI*2);
+    ctx.stroke();
+  }
+
+  // 시간 기어
+  const gears=3;
+  for(let g=0;g<gears;g++){
+    const gr=30+g*25;
+    const teeth=8+g*4;
+    const rot=phase*(g%2===0?1:-1)*1.5;
+    ctx.save();
+    ctx.rotate(rot);
+    ctx.strokeStyle=`rgba(0,255,136,${.7-g*.15})`;
+    ctx.lineWidth=1.5;
+    ctx.shadowColor='#00ff88'; ctx.shadowBlur=10;
+    ctx.beginPath();
+    for(let t=0;t<teeth*2;t++){
+      const a=(t/teeth/2)*Math.PI*2;
+      const r2=t%2===0?gr:gr-6;
+      ctx.lineTo(Math.cos(a)*r2,Math.sin(a)*r2);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 중앙 보석
+  const gemGrd=ctx.createRadialGradient(0,0,0,0,0,20);
+  gemGrd.addColorStop(0,'rgba(255,255,255,.9)');
+  gemGrd.addColorStop(.3,'rgba(0,255,136,.8)');
+  gemGrd.addColorStop(1,'rgba(0,200,100,0)');
+  ctx.fillStyle=gemGrd;
+  ctx.shadowColor='#00ff88'; ctx.shadowBlur=30;
+  ctx.beginPath();
+  ctx.arc(0,0,18,0,Math.PI*2);
+  ctx.fill();
+
+  // 룬 텍스트 (육각형)
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2+phase;
+    const rx=Math.cos(a)*70, ry=Math.sin(a)*70;
+    ctx.font='bold 11px Cinzel';
+    ctx.fillStyle=`rgba(0,255,136,.8)`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(['ᚱ','ᚢ','ᚾ','ᚨ','ᛁ','ᚳ'][i],rx,ry);
+  }
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════════════════
+// 미러 디멘션 드로잉 (MIRROR DIMENSION)
+// ══════════════════════════════════════════════════════════
+function drawMirrorTrails(ctx){
+  for(let ti=mirrorTrails.length-1;ti>=0;ti--){
+    const trail=mirrorTrails[ti];
+    trail.life-=.008;
+    if(trail.life<=0){mirrorTrails.splice(ti,1);continue;}
+    if(trail.points.length<2) continue;
+
+    ctx.save();
+    ctx.globalAlpha=trail.life*.8;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+
+    // 메인 선 — 파란 크리스탈
+    ctx.strokeStyle='rgba(0,212,255,.9)';
+    ctx.lineWidth=3;
+    ctx.shadowColor='#00d4ff'; ctx.shadowBlur=15;
+    ctx.beginPath();
+    trail.points.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+    ctx.stroke();
+
+    // 글로우 레이어
+    ctx.strokeStyle='rgba(100,220,255,.4)';
+    ctx.lineWidth=8;
+    ctx.shadowBlur=25;
+    ctx.beginPath();
+    trail.points.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+    ctx.stroke();
+
+    // 기하학 파편 (미러 디멘션 특성)
+    if(trail.points.length>3){
+      const mid=trail.points[~~(trail.points.length/2)];
+      ctx.save();
+      ctx.translate(mid.x,mid.y);
+      ctx.rotate(Date.now()*.001);
+      ctx.strokeStyle='rgba(0,212,255,.3)';
+      ctx.lineWidth=1;
+      for(let f=0;f<4;f++){
+        const fa=(f/4)*Math.PI*2;
+        const fr=20+trail.life*30;
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        ctx.lineTo(Math.cos(fa)*fr,Math.sin(fa)*fr);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// 방패 (SHIELD OF THE SERAPHIM)
+// ══════════════════════════════════════════════════════════
+function drawShield(ctx, state, dt){
+  if(!state.active) return;
+  const {x,y,radius,phase,life}=state;
+  state.phase+=dt*3;
+  state.life-=dt*.3;
+  if(state.life<=0){state.active=false;return;}
+
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.globalAlpha=Math.min(1,state.life*.8);
+
+  // 방패 헥사곤 그리드
+  const hexSize=35;
+  const rows=5;
+  const cols=5;
+  for(let r=-rows;r<=rows;r++){
+    for(let c=-cols;c<=cols;c++){
+      const hx=(c+r*.5)*hexSize*1.73;
+      const hy=r*hexSize*1.5;
+      const dist=Math.sqrt(hx*hx+hy*hy);
+      if(dist>radius*1.1) continue;
+      const distAlpha=Math.max(0,1-dist/radius);
+      const t=(Math.sin(dist*.05-state.phase*2)+1)*.5;
+
+      ctx.save();
+      ctx.translate(hx,hy);
+      ctx.rotate(state.phase*.3);
+      ctx.strokeStyle=`rgba(150,220,255,${distAlpha*(.4+t*.4)})`;
+      ctx.lineWidth=1.2;
+      ctx.shadowColor='#00d4ff'; ctx.shadowBlur=8;
+      ctx.beginPath();
+      for(let v=0;v<6;v++){
+        const va=(v/6)*Math.PI*2;
+        const vr=hexSize*.5;
+        v===0?ctx.moveTo(Math.cos(va)*vr,Math.sin(va)*vr):ctx.lineTo(Math.cos(va)*vr,Math.sin(va)*vr);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // 방패 외곽 링
+  for(let i=0;i<3;i++){
+    const rr=radius*(.7+i*.15);
+    ctx.strokeStyle=`rgba(0,212,255,${.6-i*.15})`;
+    ctx.lineWidth=2-i*.4;
+    ctx.shadowColor='#00d4ff'; ctx.shadowBlur=15;
+    ctx.beginPath();
+    ctx.arc(0,0,rr,0,Math.PI*2);
+    ctx.stroke();
+  }
+
+  // 방패 내부 글로우
+  const sg=ctx.createRadialGradient(0,0,0,0,0,radius);
+  sg.addColorStop(0,'rgba(0,212,255,.06)');
+  sg.addColorStop(.7,'rgba(0,212,255,.03)');
+  sg.addColorStop(1,'rgba(0,212,255,0)');
+  ctx.fillStyle=sg;
+  ctx.beginPath();
+  ctx.arc(0,0,radius,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════════════════
+// 파티클 렌더
+// ══════════════════════════════════════════════════════════
+function drawParticles(){
+  particles=particles.filter(p=>{
+    p.x+=p.vx; p.y+=p.vy;
+    p.vy+=p.gravity; p.vx*=.97;
+    p.life-=p.decay;
+    if(p.life<=0)return false;
+    mCtx.save();
+    mCtx.globalAlpha=p.life*.9;
+    mCtx.fillStyle=p.color;
+    mCtx.shadowColor=p.color; mCtx.shadowBlur=10;
+    mCtx.beginPath();
+    mCtx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);
+    mCtx.fill();
+    mCtx.restore();
+    return true;
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// 제스처 분류
+// ══════════════════════════════════════════════════════════
+function fingerStates(lm){
+  const t=[8,12,16,20],p=[6,10,14,18],m=[5,9,13,17];
+  return t.map((ti,i)=>lm[ti].y<lm[p[i]].y-.02&&lm[p[i]].y<lm[m[i]].y+.04);
+}
+function classify(lm){
+  const pinch=Math.hypot(lm[4].x-lm[8].x,lm[4].y-lm[8].y);
+  if(pinch<.06)return'PINCH';
+  const f=fingerStates(lm),n=f.filter(Boolean).length;
+  if(n===0)return'FIST';
+  if(f[0]&&!f[1]&&!f[2]&&!f[3])return'POINT';
+  if(n>=3)return'OPEN';
+  return'NEUTRAL';
+}
+function scXY(lm,i){
+  const PAD=.08;
+  return{
+    x:Math.max(0,Math.min(1,(lm[i].x-PAD)/(1-PAD*2)))*innerWidth,
+    y:Math.max(0,Math.min(1,(lm[i].y-PAD)/(1-PAD*2)))*innerHeight,
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+// 손 상태
+// ══════════════════════════════════════════════════════════
+let hands=[];
+const prevGest=['NONE','NONE'];
+let mandalaPhase=0;
+let mirrorActive=false;
+let currentMirrorTrail=null;
+let frameN=0;
+let lastT=performance.now();
+
+// 손 → 만달라 회전 속도 (손의 움직임으로 제어)
+let mandalaPalmX=null, mandalaPalmY=null;
+
+// ══════════════════════════════════════════════════════════
+// 스켈레톤 (황금 마법사 스타일)
+// ══════════════════════════════════════════════════════════
+const SC=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
+const TIPS=[4,8,12,16,20];
+
+function drawMagicSkel(ctx,lm,W,H,gest,col='#c8a84b'){
+  // 선만 그리기 — 관절 점 없음
+  ctx.strokeStyle=col+'66'; ctx.lineWidth=1;
+  ctx.shadowColor=col; ctx.shadowBlur=4;
+  SC.forEach(([a,b])=>{
+    ctx.beginPath();
+    ctx.moveTo(lm[a].x*W,lm[a].y*H);
+    ctx.lineTo(lm[b].x*W,lm[b].y*H);
+    ctx.stroke();
+  });
+  ctx.shadowBlur=0;
+}
+
+// ══════════════════════════════════════════════════════════
+// 렌더 루프
+// ══════════════════════════════════════════════════════════
+function render(now){
+  requestAnimationFrame(render);
+  frameN++;
+  const dt=Math.min((now-lastT)/1000,.05);
+  lastT=now;
+  const W=innerWidth,H=innerHeight;
+
+  // 캔버스 클리어 — 마법 잔상 (살짝만 남김)
+  mCtx.fillStyle='rgba(0,0,0,0.03)';
+  mCtx.fillRect(0,0,W,H);
+  lCtx.clearRect(0,0,W,H);
+  sCtx.clearRect(0,0,180,135);
+
+  if(!hands.length){
+    document.getElementById('cursor').style.opacity='0';
+    // 파티클은 계속 렌더
+    drawParticles();
+    drawMirrorTrails(mCtx);
+    return;
+  }
+
+  // 마력 게이지 서서히 감소
+  globalPower=Math.max(0,globalPower-dt*.15);
+  document.getElementById('power-fill').style.width=(globalPower*100)+'%';
+
+  mandalaPhase+=dt*1.2;
+
+  // ── 각 손 처리 ─────────────────────────────────
+  const SKEL_COLS=['#c8a84b','#ff8c00'];
+  let activeMagic='';
+
+  hands.forEach((h,hi)=>{
+    const lm=h.lm,gest=h.gest;
+    const col=SKEL_COLS[hi];
+    const palm=scXY(lm,0);
+    const idx=scXY(lm,8);
+    const pg=prevGest[hi];
+
+    // 스켈레톤 (전체화면만)
+    drawMagicSkel(lCtx,lm,W,H,gest,col);
+
+    // ── ✋ OPEN HAND → 타임 스톤 ──────────────────
+    if(gest==='OPEN'){
+      activeMagic='TIMESTONE';
+      globalPower=Math.min(1,globalPower+dt*.8);
+      timestoneState.active=true;
+      timestoneState.x=palm.x;
+      timestoneState.y=palm.y;
+      timestoneState.life=2;
+      if(pg!=='OPEN'){initAudio();playTimestone();}
+    }
+
+    // ── ☝️ POINT → 미러 디멘션 드로잉 ────────────
+    if(gest==='POINT'){
+      activeMagic='MIRROR DIMENSION';
+      globalPower=Math.min(1,globalPower+dt*.3);
+      mirrorActive=true;
+      if(pg!=='POINT'){
+        currentMirrorTrail={points:[{x:idx.x,y:idx.y}],life:1};
+        mirrorTrails.push(currentMirrorTrail);
+      } else if(currentMirrorTrail){
+        currentMirrorTrail.points.push({x:idx.x,y:idx.y});
+        if(currentMirrorTrail.points.length>120) currentMirrorTrail.points.shift();
+      }
+    } else {
+      if(pg==='POINT') currentMirrorTrail=null;
+    }
+
+    // ── 🤌 PINCH → 포탈 (양손이면 더 강력) ────────
+    if(gest==='PINCH'){
+      activeMagic='SLING RING PORTAL';
+      globalPower=Math.min(1,globalPower+dt*.6);
+      const mid=scXY(lm,8);
+      const pr=60+globalPower*80;
+      if(!portalState.active){
+        initAudio();playPortalOpen();
+      }
+      portalState.active=true;
+      portalState.x=mid.x;
+      portalState.y=mid.y;
+      portalState.radius=pr;
+      spawnRuneParticles(mid.x,mid.y,2,'#ff8c00');
+    }
+
+    // ── ✊ FIST → 방패 ────────────────────────────
+    if(gest==='FIST'){
+      activeMagic='SHIELD OF SERAPHIM';
+      globalPower=Math.min(1,globalPower+dt*.5);
+      if(pg!=='FIST'){initAudio();playShield();}
+      shieldState.active=true;
+      shieldState.x=palm.x;
+      shieldState.y=palm.y;
+      shieldState.radius=80+globalPower*60;
+      shieldState.life=3;
+    }
+
+    // ── 🌀 NEUTRAL/OPEN → 만달라 ─────────────────
+    if(gest==='NEUTRAL'||gest==='OPEN'){
+      if(!activeMagic) activeMagic='MANDALAS';
+      // 손 이동으로 만달라 회전 제어
+      if(mandalaPalmX!==null){
+        const dx=palm.x-mandalaPalmX;
+        mandalaPhase+=dx*.03;
+      }
+      mandalaPalmX=palm.x; mandalaPalmY=palm.y;
+
+      // 만달라 그리기 (손바닥 중심)
+      drawMandala(mCtx,palm.x,palm.y,55+globalPower*40,mandalaPhase,
+        .55+globalPower*.2,globalPower);
+      globalPower=Math.min(1,globalPower+dt*.2);
+    } else {
+      mandalaPalmX=null;
+    }
+
+    prevGest[hi]=gest;
+  });
+
+  // ── 양손 포탈 (더 크게) ──────────────────────────
+  if(hands.length>=2){
+    const g0=hands[0].gest,g1=hands[1].gest;
+    if(g0==='PINCH'&&g1==='PINCH'){
+      activeMagic='🌀 BIFROST PORTAL';
+      const p0=scXY(hands[0].lm,8);
+      const p1=scXY(hands[1].lm,8);
+      const mx=(p0.x+p1.x)/2, my=(p0.y+p1.y)/2;
+      const dist=Math.hypot(p0.x-p1.x,p0.y-p1.y);
+      portalState.x=mx; portalState.y=my;
+      portalState.radius=dist*.4+60;
+      portalState.active=true;
+      globalPower=Math.min(1,globalPower+.03);
+    }
+  }
+
+  // ── 이펙트 렌더 ────────────────────────────────
+  drawMirrorTrails(mCtx);
+  drawPortal(mCtx,portalState,dt);
+  drawTimestone(mCtx,timestoneState,dt);
+  drawShield(mCtx,shieldState,dt);
+  drawParticles();
+
+  // 포탈이 비활성이면 서서히 제거
+  if(hands.every(h=>h.gest!=='PINCH')) portalState.active=false;
+
+  // ── 커서 ────────────────────────────────────────
+  if(hands.length>0){
+    const ix=scXY(hands[0].lm,8);
+    const cur=document.getElementById('cursor');
+    cur.style.opacity='1';
+    cur.style.left=ix.x+'px'; cur.style.top=ix.y+'px';
+  }
+
+  // ── HUD 업데이트 ─────────────────────────────────
+  const spellLabel=document.getElementById('spell-label');
+  if(activeMagic){
+    spellLabel.textContent=activeMagic;
+    spellLabel.style.textShadow='0 0 16px rgba(200,168,75,.7)';
+  } else {
+    spellLabel.textContent='—';
+    spellLabel.style.textShadow='none';
+  }
+
+  const SPELL_MAP={
+    'MANDALAS':'sp-mandala','SLING RING PORTAL':'sp-portal',
+    'TIMESTONE':'sp-timestone','MIRROR DIMENSION':'sp-mirror',
+    'SHIELD OF SERAPHIM':'sp-shield','🌀 BIFROST PORTAL':'sp-portal'
+  };
+  document.querySelectorAll('.spell-btn').forEach(b=>b.classList.remove('active'));
+  if(SPELL_MAP[activeMagic]) document.getElementById(SPELL_MAP[activeMagic])?.classList.add('active');
+
+  const ggMap={
+    'OPEN':'sp-timestone','POINT':'sp-mirror',
+    'PINCH':'sp-portal','FIST':'sp-shield','NEUTRAL':'sp-mandala'
+  };
+  if(hands.length>0){
+    const g=hands[0].gest;
+    if(ggMap[g])document.getElementById(ggMap[g])?.classList.add('active');
+  }
+}
+requestAnimationFrame(render);
+
+// ══════════════════════════════════════════════════════════
+// MediaPipe
+// ══════════════════════════════════════════════════════════
+ld(60,'Awakening the Eye of Agamotto...');
+const vidEl=document.getElementById('webcam');
+const camSmall=document.getElementById('cam-small');
+
+const handsMP=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+handsMP.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.72,minTrackingConfidence:.62});
+handsMP.onResults(res=>{
+  initAudio();
+  hands=(res.multiHandLandmarks||[]).map(lm=>({lm,gest:classify(lm)}));
+  if(!hands.length) document.getElementById('cursor').style.opacity='0';
+});
+
+// ══════════════════════════════════════════════════════════
+// 카메라
+// ══════════════════════════════════════════════════════════
+ld(82,'Opening the Mirror Dimension...');
+(async()=>{
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia(
+      {video:{width:1280,height:720,facingMode:'user'}});
+    vidEl.srcObject=stream;
+    camSmall.srcObject=stream;
+    new Camera(vidEl,{
+      onFrame:async()=>await handsMP.send({image:vidEl}),
+      width:1280,height:720
+    }).start();
+    ld(100,'The mystic arts await...');
+  }catch(e){
+    console.warn('Camera denied');
+    ld(100,'No camera — run localhost');
+    // 데모: 자동 만달라
+    setInterval(()=>{
+      const x=innerWidth/2+(Math.random()-.5)*300;
+      const y=innerHeight/2+(Math.random()-.5)*200;
+      spawnRuneParticles(x,y,5);
+    },200);
+  }
+  setTimeout(()=>{
+    const el=document.getElementById('loading');
+    el.style.transition='opacity .8s'; el.style.opacity='0';
+    setTimeout(()=>el.remove(),900);
+  },500);
+})();
+</script>
+</body>
+</html>
